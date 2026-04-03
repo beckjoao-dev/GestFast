@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+}
+
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm;
+  }
+  .card-p {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm p-5;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm
+           text-slate-800 placeholder-slate-300 outline-none transition-all
+           focus:border-blue-400 focus:ring-4 focus:ring-blue-50;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold
+           text-sm transition-all active:scale-[.98] disabled:opacity-50 cursor-pointer;
+  }
+  .btn-primary {
+    @apply btn bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 shadow-sm
+           shadow-blue-100 hover:shadow-blue-200;
+  }
+  .btn-green {
+    @apply btn bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5
+           shadow-sm shadow-emerald-100;
+  }
+  .btn-outline {
+    @apply btn border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 px-5 py-2.5;
+  }
+  .btn-sm {
+    @apply px-3.5 py-2 text-xs;
+  }
+  .btn-danger-soft {
+    @apply btn border border-red-100 bg-red-50 hover:bg-red-100 text-red-500 px-3.5 py-2 text-xs;
+  }
+
+  /* Badges */
+  .badge-green  { @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100; }
+  .badge-red    { @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-100; }
+  .badge-amber  { @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100; }
+  .badge-blue   { @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100; }
+  .badge-gold   { @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200; }
+
+  /* Section header */
+  .section-header {
+    @apply border-b border-slate-50 bg-slate-50/70 px-6 py-4;
+  }
+
+  /* Field hint */
+  .hint { @apply text-xs text-slate-400 mt-1.5 leading-relaxed; }
+
+  /* Money values */
+  .money { font-family: var(--font-mono); }
+
+  /* Alert strip */
+  .alert-strip {
+    @apply flex items-start gap-3 px-4 py-3.5 rounded-xl text-sm font-medium;
+  }
+  .alert-danger { @apply alert-strip bg-red-50 text-red-700 border border-red-100; }
+  .alert-amber  { @apply alert-strip bg-amber-50 text-amber-700 border border-amber-100; }
+  .alert-green  { @apply alert-strip bg-emerald-50 text-emerald-700 border border-emerald-100; }
+  .alert-blue   { @apply alert-strip bg-blue-50 text-blue-700 border border-blue-100; }
+}

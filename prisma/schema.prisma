@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  role         Role         @default(USER)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  ingredients  Ingredient[]
+  products     Product[]
+  extraCosts   ExtraCost[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model Ingredient {
+  id        String   @id @default(cuid())
+  name      String
+  unit      Unit
+  totalCost Float
+  totalQty  Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productIngredients ProductIngredient[]
+
+  @@map("ingredients")
+}
+
+// Custos operacionais cadastrados uma vez e reutilizados em qualquer produto
+model ExtraCost {
+  id          String         @id @default(cuid())
+  name        String         // Ex: "Botijão de gás", "Conta de luz"
+  category    CostCategory
+  totalCost   Float          // Custo total do item (ex: R$ 120 do botijão)
+  totalQty    Float          // Quantidade de uso que ele rende (ex: 30 receitas)
+  unit        String         // Unidade de uso (ex: "receita", "hora", "unidade")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productExtraCosts ProductExtraCost[]
+
+  @@map("extra_costs")
+}
+
+enum CostCategory {
+  energy      // Energia elétrica
+  gas         // Gás
+  packaging   // Embalagem
+  labor       // Mão de obra
+  other       // Outros
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  timeMinutes Int?
+  marginPct   Float
+  batchSize   Int      @default(1)
+
+  // Mantidos para compatibilidade com dados existentes
+  energyCost  Float    @default(0)
+  gasCost     Float    @default(0)
+  packCost    Float    @default(0)
+  otherCost   Float    @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ingredients       ProductIngredient[]
+  extraCosts        ProductExtraCost[]
+
+  @@map("products")
+}
+
+model ProductIngredient {
+  id           String     @id @default(cuid())
+  quantity     Float
+
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, ingredientId])
+  @@map("product_ingredients")
+}
+
+// Associação de custos operacionais a produtos com quantidade
+model ProductExtraCost {
+  id          String    @id @default(cuid())
+  quantity    Float     // Quantas "unidades" deste custo são usadas neste produto
+
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  extraCostId String
+  extraCost   ExtraCost @relation(fields: [extraCostId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, extraCostId])
+  @@map("product_extra_costs")
+}
+
+enum Unit {
+  g
+  kg
+  ml
+  l
+  un
+}
