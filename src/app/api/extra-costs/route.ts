@@ -14,25 +14,27 @@ const ExtraCostSchema = z.object({
 
 export async function GET() {
   try {
-    const session = requireAuth()
+    const session   = requireAuth()
     const extraCosts = await prisma.extraCost.findMany({
-      where: { userId: session.userId },
+      where:   { userId: session.userId },
       orderBy: { createdAt: 'desc' },
     })
     return ok({ extraCosts })
-  } catch (e) { return handleAuthError(e) }
+  } catch (e) {
+    return handleAuthError(e)
+  }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const session = requireAuth()
-    const data    = ExtraCostSchema.parse(await req.json())
+    const body    = ExtraCostSchema.safeParse(await req.json())
+    if (!body.success) return validationErr(body.error as ZodError)
     const extraCost = await prisma.extraCost.create({
-      data: { ...data, userId: session.userId },
+      data: { ...body.data, userId: session.userId },
     })
     return ok({ extraCost }, 201)
   } catch (e) {
-    if (e instanceof ZodError) return validationErr(e)
     return handleAuthError(e)
   }
 }

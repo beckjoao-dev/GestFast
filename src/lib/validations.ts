@@ -19,20 +19,27 @@ export const IngredientSchema = z.object({
 })
 
 export const ProductIngredientSchema = z.object({
-  ingredientId: z.string().cuid(),
+  ingredientId: z.string().min(1),
   quantity:     z.number().positive('Quantidade deve ser positiva'),
+})
+
+export const ProductExtraCostSchema = z.object({
+  extraCostId: z.string().min(1),
+  quantity:    z.number().positive('Quantidade deve ser positiva'),
 })
 
 export const ProductSchema = z.object({
   name:        z.string().min(1, 'Informe o nome').max(100),
-  timeMinutes: z.number().int().min(0).optional().nullable(),
+  timeMinutes: z.number().int().min(0).nullable().optional(),
   marginPct:   z.number().min(1, 'Margem mínima 1%').max(99, 'Margem máxima 99%'),
   batchSize:   z.number().int().min(1).default(1),
+  salePrice:   z.number().min(0).default(0),
   energyCost:  z.number().min(0).default(0),
   gasCost:     z.number().min(0).default(0),
   packCost:    z.number().min(0).default(0),
   otherCost:   z.number().min(0).default(0),
   ingredients: z.array(ProductIngredientSchema).default([]),
+  extraCosts:  z.array(ProductExtraCostSchema).default([]),
 })
 
 export type LoginInput      = z.infer<typeof LoginSchema>

@@ -30,11 +30,11 @@ export function serverError() {
   return err('Erro interno do servidor', 500)
 }
 
-// Helper para tratar erros de requireAuth/requireAdmin
-export function handleAuthError(e: unknown) {
+export function handleAuthError(e: unknown): NextResponse {
   if (e instanceof Error) {
     if (e.message === 'UNAUTHORIZED') return unauthorized()
-    if (e.message === 'FORBIDDEN') return forbidden()
+    if (e.message === 'FORBIDDEN')    return forbidden()
   }
+  console.error('[server error]', e)
   return serverError()
 }

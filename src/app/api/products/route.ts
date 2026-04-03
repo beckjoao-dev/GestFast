@@ -3,17 +3,16 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { ProductSchema } from '@/lib/validations'
 import { ok, validationErr, handleAuthError } from '@/lib/api'
-import { ZodError } from 'zod'
 
 const productInclude = {
   ingredients: { include: { ingredient: true } },
-}
+} as const
 
 export async function GET() {
   try {
-    const session = requireAuth()
+    const session  = requireAuth()
     const products = await prisma.product.findMany({
-      where: { userId: session.userId },
+      where:   { userId: session.userId },
       include: productInclude,
       orderBy: { createdAt: 'desc' },
     })
@@ -26,7 +25,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = requireAuth()
-    const { ingredients, ...data } = ProductSchema.parse(await req.json())
+    const body    = ProductSchema.safeParse(await req.json())
+    if (!body.success) return validationErr(body.error)
+    const { ingredients, ...data } = body.data
     const product = await prisma.product.create({
       data: {
         ...data,
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
         ingredients: {
           create: ingredients.map(i => ({
             ingredientId: i.ingredientId,
-            quantity: i.quantity,
+            quantity:     i.quantity,
           })),
         },
       },
@@ -42,7 +43,6 @@ export async function POST(req: NextRequest) {
     })
     return ok({ product }, 201)
   } catch (e) {
-    if (e instanceof ZodError) return validationErr(e)
     return handleAuthError(e)
   }
 }

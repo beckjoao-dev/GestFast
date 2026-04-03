@@ -5,28 +5,38 @@ import { calcProductCost, formatBRL, sortedBreakdown } from '@/lib/pricing'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import type { Product, ProductIngredient, Ingredient } from '@prisma/client'
 
-type ProductFull = Product & { ingredients: (ProductIngredient & { ingredient: Ingredient })[] }
+type ProductFull = Product & {
+  ingredients: (ProductIngredient & { ingredient: Ingredient })[]
+}
 interface Props { products: ProductFull[] }
 
-function fmtBRL(n: number) { return formatBRL(n) }
+interface PieTipProps {
+  active?:  boolean
+  payload?: Array<{ name: string; value: number; payload: { pct: number } }>
+}
 
-function PieTip({ active, payload }: { active?: boolean; payload?: { name: string; value: number; payload: { pct: number } }[] }) {
+function PieTip({ active, payload }: PieTipProps) {
   if (!active || !payload?.length) return null
+  const p = payload[0]
   return (
     <div className="bg-white border border-slate-200 shadow-lg rounded-xl px-3 py-2 text-xs">
-      <p className="font-semibold text-slate-700">{payload[0].name}</p>
-      <p className="text-slate-500">{fmtBRL(payload[0].value)} · {payload[0].payload.pct.toFixed(0)}% do custo</p>
+      <p className="font-semibold text-slate-700">{p.name}</p>
+      <p className="text-slate-500">{formatBRL(p.value)} · {p.payload.pct.toFixed(0)}% do custo</p>
     </div>
   )
 }
 
 export default function SimulationClient({ products }: Props) {
-  const [selectedId, setSelectedId] = useState(products[0]?.id ?? '')
+  const [selectedId,  setSelectedId]  = useState(products[0]?.id ?? '')
   const [salesPerDay, setSalesPerDay] = useState(10)
-  const [priceMode, setPriceMode] = useState<'slider' | 'manual'>('slider')
+  const [priceMode,   setPriceMode]   = useState<'slider' | 'manual'>('slider')
   const [manualPrice, setManualPrice] = useState('')
+  const [sliderPrice, setSliderPrice] = useState<number | null>(null)
 
-  const product = useMemo(() => products.find(p => p.id === selectedId), [selectedId, products])
+  const product = useMemo(
+    () => products.find(p => p.id === selectedId),
+    [selectedId, products]
+  )
 
   const baseInput = useMemo(() => {
     if (!product) return null
@@ -36,64 +46,57 @@ export default function SimulationClient({ products }: Props) {
         totalQty:  pi.ingredient.totalQty,
         quantity:  pi.quantity,
       })),
-      energyCost: product.energyCost, gasCost: product.gasCost,
-      packCost:   product.packCost,   otherCost: product.otherCost,
+      energyCost: product.energyCost,
+      gasCost:    product.gasCost,
+      packCost:   product.packCost,
+      otherCost:  product.otherCost,
       batchSize:  product.batchSize,
     }
   }, [product])
 
-  // Preço via slider (R$ — não margem — mais intuitivo)
   const unitCostOnly = useMemo(() => {
     if (!baseInput) return 0
-    const r = calcProductCost({ ...baseInput, marginPct: 0.01 })
-    return r.unitCost
+    return calcProductCost({ ...baseInput, marginPct: 0.01 }).unitCost
   }, [baseInput])
 
-  const minPrice = unitCostOnly
   const maxPrice = unitCostOnly * 4
 
-  const [sliderPrice, setSliderPrice] = useState<number | null>(null)
   const effectivePrice = useMemo(() => {
-    if (sliderPrice === null && product) {
-      // Inicializa com o preço sugerido do produto
-      const r = calcProductCost({ ...baseInput!, marginPct: product.marginPct })
-      return r.suggestedPrice
-    }
-    return sliderPrice ?? minPrice
-  }, [sliderPrice, product, baseInput, minPrice])
+    if (sliderPrice !== null) return sliderPrice
+    if (!product || !baseInput) return unitCostOnly
+    return calcProductCost({ ...baseInput, marginPct: product.marginPct }).suggestedPrice
+  }, [sliderPrice, product, baseInput, unitCostOnly])
 
   const manualPriceNum = parseFloat(manualPrice) || 0
   const activePrice    = priceMode === 'manual' && manualPriceNum > 0 ? manualPriceNum : effectivePrice
 
-  // Resultado calculado a partir do preço ativo
   const result = useMemo(() => {
     if (!baseInput) return null
-    // Calcula com margem 35% para ter os breakdowns, mas usa activePrice para lucro real
     return calcProductCost({ ...baseInput, marginPct: 35 })
   }, [baseInput])
 
-  const unitProfit  = result ? activePrice - result.unitCost : 0
-  const marginReal  = activePrice > 0 ? (unitProfit / activePrice) * 100 : 0
-  const hasProfit   = unitProfit > 0
-
-  // Projeções
+  const unitProfit    = result ? activePrice - result.unitCost : 0
+  const marginReal    = activePrice > 0 ? (unitProfit / activePrice) * 100 : 0
+  const hasProfit     = unitProfit > 0
   const dailyProfit   = unitProfit * salesPerDay
   const monthlyProfit = dailyProfit * 26
 
-  // 3 cenários de preço
   const scenarios = useMemo(() => {
     if (!result) return []
     const uc = result.unitCost
     return [
-      { label: 'Conservador', pct: 30, price: uc / (1 - 0.30), color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
-      { label: 'Recomendado', pct: 40, price: uc / (1 - 0.40), color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', highlight: true },
-      { label: 'Premium',     pct: 55, price: uc / (1 - 0.55), color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-100' },
+      { label: 'Conservador', pct: 30, price: uc / 0.70, color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-100'   },
+      { label: 'Recomendado', pct: 40, price: uc / 0.60, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', highlight: true },
+      { label: 'Premium',     pct: 55, price: uc / 0.45, color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-100'    },
     ]
   }, [result])
 
-  const pieData = result ? sortedBreakdown(result.breakdown, result.breakdownPct).map(i => ({
-    name: i.label, value: i.value, pct: i.pct, color: i.color,
-  })) : []
+  const pieData = useMemo(() => {
+    if (!result) return []
+    return sortedBreakdown(result.breakdown, result.breakdownPct).map(i => ({
+      name: i.label, value: i.value, pct: i.pct, color: i.color,
+    }))
+  }, [result])
 
   function selectProduct(id: string) {
     setSelectedId(id)
@@ -115,20 +118,19 @@ export default function SimulationClient({ products }: Props) {
   return (
     <div className="max-w-2xl space-y-4">
 
-      {/* Seletor de produto */}
+      {/* Seletor */}
       <div className="card-p">
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
           Produto que quer analisar
         </label>
-        <select value={selectedId} onChange={e => selectProduct(e.target.value)}
-          className="input font-semibold text-slate-700">
+        <select value={selectedId} onChange={e => selectProduct(e.target.value)} className="input font-semibold">
           {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
 
       {product && result && (
         <>
-          {/* RESULTADO PRINCIPAL */}
+          {/* Resultado principal */}
           <div className={`card overflow-hidden border-2 ${hasProfit ? 'border-emerald-200' : 'border-red-200'}`}>
             <div className={`px-5 py-4 ${hasProfit ? 'bg-emerald-500' : 'bg-red-500'}`}>
               <div className="flex items-center justify-between">
@@ -137,7 +139,7 @@ export default function SimulationClient({ products }: Props) {
                     {hasProfit ? '✅ Você está lucrando' : '❌ Você está perdendo dinheiro'}
                   </p>
                   <p className="text-white text-3xl font-black money">
-                    {hasProfit ? '+' : ''}{fmtBRL(unitProfit)}
+                    {hasProfit ? '+' : ''}{formatBRL(unitProfit)}
                     <span className="text-base font-normal ml-1.5 opacity-80">por unidade</span>
                   </p>
                 </div>
@@ -149,59 +151,50 @@ export default function SimulationClient({ products }: Props) {
                 </div>
               </div>
             </div>
-
-            {/* Detalhe custo vs preço */}
             <div className="grid grid-cols-2 divide-x divide-slate-100">
               <div className="px-5 py-4">
                 <p className="text-xs text-slate-400 mb-1">Custa fazer</p>
-                <p className="text-lg font-bold money text-slate-800">{fmtBRL(result.unitCost)}</p>
+                <p className="text-lg font-bold money text-slate-800">{formatBRL(result.unitCost)}</p>
                 <p className="text-[11px] text-slate-400">por unidade</p>
               </div>
               <div className="px-5 py-4">
                 <p className="text-xs text-slate-400 mb-1">Você está cobrando</p>
                 <p className={`text-lg font-bold money ${hasProfit ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {fmtBRL(activePrice)}
+                  {formatBRL(activePrice)}
                 </p>
                 <p className="text-[11px] text-slate-400">por unidade</p>
               </div>
             </div>
-
-            {/* Mensagem ação */}
             <div className={`px-5 py-3 text-sm font-medium border-t ${hasProfit ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
               {hasProfit
-                ? `Ótimo! Vendendo ${salesPerDay}/dia você lucra ${fmtBRL(monthlyProfit)}/mês.`
-                : `Aumente para pelo menos ${fmtBRL(result.suggestedPrice)} para ter lucro.`}
+                ? `Vendendo ${salesPerDay}/dia você lucra ${formatBRL(monthlyProfit)}/mês.`
+                : `Aumente para pelo menos ${formatBRL(result.suggestedPrice)} para ter lucro.`}
             </div>
           </div>
 
-          {/* SLIDER DE PREÇO (mais intuitivo que margem) */}
+          {/* Slider de preço */}
           <div className="card overflow-hidden">
-            <div className="section-header">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Simule o preço de venda</p>
-                <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
-                  <button onClick={() => setPriceMode('slider')}
-                    className={`text-xs px-2.5 py-1 rounded-md font-semibold transition ${priceMode === 'slider' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>
-                    Slider
+            <div className="section-header flex items-center justify-between">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Simule o preço de venda</p>
+              <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+                {(['slider', 'manual'] as const).map(mode => (
+                  <button key={mode} onClick={() => setPriceMode(mode)}
+                    className={`text-xs px-2.5 py-1 rounded-md font-semibold transition capitalize ${priceMode === mode ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>
+                    {mode === 'slider' ? 'Slider' : 'Digitar'}
                   </button>
-                  <button onClick={() => setPriceMode('manual')}
-                    className={`text-xs px-2.5 py-1 rounded-md font-semibold transition ${priceMode === 'manual' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>
-                    Digitar
-                  </button>
-                </div>
+                ))}
               </div>
             </div>
-
             <div className="p-5">
               {priceMode === 'slider' ? (
                 <>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs text-slate-400">Custo: {fmtBRL(minPrice)}</span>
-                    <span className="text-base font-black text-blue-600 money">{fmtBRL(effectivePrice)}</span>
-                    <span className="text-xs text-slate-400">Máx: {fmtBRL(maxPrice)}</span>
+                    <span className="text-xs text-slate-400">Custo: {formatBRL(unitCostOnly)}</span>
+                    <span className="text-base font-black text-blue-600 money">{formatBRL(effectivePrice)}</span>
+                    <span className="text-xs text-slate-400">Máx: {formatBRL(maxPrice)}</span>
                   </div>
                   <input type="range"
-                    min={Math.max(0.01, minPrice * 0.5)}
+                    min={Math.max(0.01, unitCostOnly * 0.5)}
                     max={maxPrice}
                     step={0.50}
                     value={effectivePrice}
@@ -218,7 +211,7 @@ export default function SimulationClient({ products }: Props) {
                   <input type="number" min="0.01" step="0.01"
                     value={manualPrice}
                     onChange={e => setManualPrice(e.target.value)}
-                    placeholder={`Ex: ${fmtBRL(result.suggestedPrice)}`}
+                    placeholder={`Ex: ${formatBRL(result.suggestedPrice)}`}
                     className="input text-lg font-bold money" />
                   <p className="hint">Digite o preço que você cobra ou quer cobrar</p>
                 </div>
@@ -226,87 +219,92 @@ export default function SimulationClient({ products }: Props) {
             </div>
           </div>
 
-          {/* PROJEÇÃO MENSAL */}
+          {/* Projeção mensal */}
           <div className="card overflow-hidden">
             <div className="section-header">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">📈 Projeção de renda</p>
             </div>
             <div className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <label className="text-sm font-semibold text-slate-700">
-                  Vendas por dia
-                </label>
+                <label className="text-sm font-semibold text-slate-700">Vendas por dia</label>
                 <span className="text-sm font-bold money text-blue-600">{salesPerDay} un./dia</span>
               </div>
               <input type="range" min="1" max="100" step="1" value={salesPerDay}
                 onChange={e => setSalesPerDay(parseInt(e.target.value))}
                 className="w-full accent-blue-500 cursor-pointer mb-4" />
-
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: 'Lucro por dia',  val: dailyProfit },
-                  { label: 'Lucro por mês',  val: monthlyProfit, highlight: true },
+                  { label: 'Lucro por mês',  val: monthlyProfit,       highlight: true },
                   { label: 'Lucro por ano',  val: monthlyProfit * 12 },
                 ].map(item => (
-                  <div key={item.label} className={`rounded-xl p-4 border text-center ${item.highlight ? (hasProfit ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200') : 'bg-slate-50 border-slate-100'}`}>
+                  <div key={item.label}
+                    className={`rounded-xl p-4 border text-center ${
+                      item.highlight
+                        ? (hasProfit ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200')
+                        : 'bg-slate-50 border-slate-100'
+                    }`}>
                     <p className="text-[11px] text-slate-400 mb-1">{item.label}</p>
-                    <p className={`text-sm font-black money ${item.highlight ? (hasProfit ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700'}`}>
-                      {fmtBRL(item.val)}
-                    </p>
+                    <p className={`text-sm font-black money ${
+                      item.highlight ? (hasProfit ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700'
+                    }`}>{formatBRL(item.val)}</p>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* 3 CENÁRIOS */}
+          {/* 3 Cenários */}
           <div className="card overflow-hidden">
             <div className="section-header">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">💡 3 cenários de preço</p>
             </div>
-            <div className="p-5">
-              <p className="text-sm text-slate-500 mb-4">
-                Veja quanto você ganha em cada opção de preço, vendendo {salesPerDay} unidades por dia:
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-slate-500 mb-2">
+                Veja quanto você ganha em cada preço, vendendo {salesPerDay} unidades/dia:
               </p>
-              <div className="space-y-3">
-                {scenarios.map(s => {
-                  const uProfit  = s.price - (result?.unitCost ?? 0)
-                  const mProfit  = uProfit * salesPerDay * 26
-                  return (
-                    <div key={s.label} className={`flex items-center gap-4 rounded-xl border p-4 ${s.border} ${s.bg} ${s.highlight ? 'ring-2 ring-emerald-300' : ''}`}>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="text-sm font-bold text-slate-700">{s.label}</p>
-                          {s.highlight && <span className="badge-green text-[10px]">Recomendado</span>}
-                        </div>
-                        <p className="text-xs text-slate-400">{s.pct}% de margem · {fmtBRL(uProfit)}/unidade</p>
+              {scenarios.map(s => {
+                const uProfit = s.price - result.unitCost
+                const mProfit = uProfit * salesPerDay * 26
+                return (
+                  <div key={s.label}
+                    className={`flex items-center gap-4 rounded-xl border p-4 ${s.border} ${s.bg} ${'highlight' in s && s.highlight ? 'ring-2 ring-emerald-300' : ''}`}>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-sm font-bold text-slate-700">{s.label}</p>
+                        {'highlight' in s && s.highlight && <span className="badge-green">Recomendado</span>}
                       </div>
-                      <div className="text-right">
-                        <p className={`text-sm font-black money ${s.color}`}>{fmtBRL(s.price)}</p>
-                        <p className="text-[11px] text-slate-400">{fmtBRL(mProfit)}/mês</p>
-                      </div>
-                      <button
-                        onClick={() => { setSliderPrice(s.price); setPriceMode('slider') }}
-                        className="btn-outline btn-sm text-[11px] shrink-0">
-                        Usar
-                      </button>
+                      <p className="text-xs text-slate-400">{s.pct}% de margem · {formatBRL(uProfit)}/unidade</p>
                     </div>
-                  )
-                })}
-              </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black money ${s.color}`}>{formatBRL(s.price)}</p>
+                      <p className="text-[11px] text-slate-400">{formatBRL(mProfit)}/mês</p>
+                    </div>
+                    <button
+                      onClick={() => { setSliderPrice(s.price); setPriceMode('slider') }}
+                      className="btn-outline btn-sm text-[11px] shrink-0">
+                      Usar
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
-          {/* GRÁFICO DE CUSTO */}
+          {/* Gráfico de custo */}
           {pieData.length > 0 && (
             <div className="card-p">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">🥧 De onde vem o custo?</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                🥧 De onde vem o custo?
+              </h3>
               <p className="text-sm text-slate-400 mb-4">Veja o que mais pesa no custo deste produto.</p>
               <div className="flex items-center gap-4">
                 <ResponsiveContainer width={140} height={140}>
                   <PieChart>
                     <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2} dataKey="value">
-                      {pieData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="transparent" />)}
+                      {pieData.map((entry, i) => (
+                        <Cell key={`cell-${i}`} fill={entry.color} stroke="transparent" />
+                      ))}
                     </Pie>
                     <Tooltip content={<PieTip />} />
                   </PieChart>
@@ -319,7 +317,7 @@ export default function SimulationClient({ products }: Props) {
                         <span className="text-xs text-slate-600 font-medium">{item.name}</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-bold money text-slate-700">{fmtBRL(item.value)}</span>
+                        <span className="text-xs font-bold money text-slate-700">{formatBRL(item.value)}</span>
                         <span className="text-[10px] text-slate-400 ml-1">({item.pct.toFixed(0)}%)</span>
                       </div>
                     </div>
