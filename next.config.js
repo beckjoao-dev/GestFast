@@ -1,14 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Necessário para bcryptjs e jsonwebtoken no servidor
-  serverExternalPackages: ['bcryptjs', 'jsonwebtoken'],
+  reactStrictMode: true,
 
-  // Ignorar erros de lint durante o build do Vercel
+  // Ignorar lint no build (opcional)
   eslint: {
     ignoreDuringBuilds: true,
   },
 
-  // Não falhar no build por erros de TypeScript (proteção extra)
+  // Manter verificação de TypeScript (recomendado)
   typescript: {
     ignoreBuildErrors: false,
   },
