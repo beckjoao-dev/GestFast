@@ -1,12 +1,9 @@
-import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import LandingPage from '@/components/LandingPage'
 
-// Rota raiz: redireciona para /dashboard se logado, /login se não
 export default function RootPage() {
   const session = getCurrentUser()
-  if (session) {
-    redirect('/dashboard')
-  } else {
-    redirect('/login')
-  }
+  if (session) redirect('/dashboard')
+  return <LandingPage />
 }

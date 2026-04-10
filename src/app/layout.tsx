@@ -2,8 +2,13 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'GestFast — Descubra quanto você realmente lucra',
-  description: 'Calcule o custo dos seus produtos e descubra o preço ideal para ganhar mais.',
+  title: 'GestFast — Pare de vender sem lucro',
+  description: 'Sistema que calcula automaticamente o custo de produção e sugere o preço ideal para que você nunca mais venda no prejuízo.',
+  openGraph: {
+    title: 'GestFast — Pare de vender sem lucro',
+    description: 'Calcule o custo real dos seus produtos e descubra o preço ideal para ter lucro. Acesso vitalício por R$ 49.',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
