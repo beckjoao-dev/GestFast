@@ -1,7 +1,7 @@
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import AdminUsersClient from '@/components/AdminUsersClient'
+import AdminUsersClient from '../../../components/AdminUsersClient'
 
 export default async function AdminPage() {
   const session = getCurrentUser()
