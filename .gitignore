@@ -1,4 +1,4 @@
-# Dependencies
+# Dependências
 node_modules/
 .pnp
 .pnp.js
@@ -8,7 +8,7 @@ node_modules/
 out/
 build/
 
-# Env files (NUNCA versionar .env!)
+# ⚠️ NUNCA versione o .env — contém senhas e chaves secretas!
 .env
 .env.local
 .env.development.local
@@ -16,7 +16,8 @@ build/
 .env.production.local
 
 # Prisma
-prisma/migrations/
+prisma/migrations/dev.db
+prisma/dev.db
 
 # Debug
 npm-debug.log*
@@ -31,3 +32,4 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+*.swo
