@@ -1,18 +1,28 @@
 import { PrismaClient } from '@prisma/client'
 
-// Evita múltiplas instâncias em desenvolvimento com hot reload
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+declare global {
+  // eslint-disable-next-line no-var
+  var prismaGlobal: PrismaClient | undefined
 }
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development'
-      ? ['error', 'warn']
-      : ['error'],
+function createPrismaClient() {
+  // Valida que DATABASE_URL existe antes de criar o cliente
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      'DATABASE_URL não está definida. ' +
+      'Verifique as variáveis de ambiente no Vercel: ' +
+      'Project Settings → Environment Variables'
+    )
+  }
+
+  return new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    errorFormat: 'pretty',
   })
+}
+
+export const prisma = global.prismaGlobal ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma
+  global.prismaGlobal = prisma
 }
