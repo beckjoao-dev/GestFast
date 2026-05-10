@@ -5,8 +5,6 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  // directUrl usado apenas quando DIRECT_URL estiver definida (migrations locais)
-  // Em produção no Vercel, só DATABASE_URL é necessária
   directUrl = env("DIRECT_URL")
 }
 
