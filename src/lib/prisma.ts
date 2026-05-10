@@ -6,7 +6,6 @@ declare global {
 }
 
 function createPrismaClient() {
-  // Valida que DATABASE_URL existe antes de criar o cliente
   if (!process.env.DATABASE_URL) {
     throw new Error(
       'DATABASE_URL não está definida. ' +
@@ -23,6 +22,5 @@ function createPrismaClient() {
 
 export const prisma = global.prismaGlobal ?? createPrismaClient()
 
-if (process.env.NODE_ENV !== 'production') {
-  global.prismaGlobal = prisma
-}
+// ✅ Salva no global em TODOS os ambientes, não só development
+global.prismaGlobal = prisma
