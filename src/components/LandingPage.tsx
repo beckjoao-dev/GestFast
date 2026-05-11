@@ -499,7 +499,7 @@ function Pricing() {
 
             {/* CTA */}
             <a
-              href="https://buy.stripe.com/seu-link-aqui"
+              href="https://buy.stripe.com/test_cNi28sccq1Ei6nw7oK6kg00"
               target="_blank"
               rel="noreferrer"
               className="block w-full text-center bg-blue-500 hover:bg-blue-600 text-white font-black text-lg py-4 rounded-2xl transition active:scale-[.98] shadow-lg shadow-blue-200 mb-4">
@@ -606,7 +606,7 @@ function FinalCTA() {
           Em menos de 10 minutos você vai saber exatamente quanto custa produzir cada produto e qual é o preço ideal para ter lucro.
         </p>
         <a
-          href="https://buy.stripe.com/seu-link-aqui"
+          href="https://buy.stripe.com/test_cNi28sccq1Ei6nw7oK6kg00"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-400 text-white font-black text-lg px-10 py-4 rounded-2xl transition active:scale-95 shadow-xl shadow-blue-900/30 mb-4">
