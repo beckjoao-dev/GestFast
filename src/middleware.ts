@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const COOKIE_NAME = 'gf_session_v2'
 
+// Rotas públicas — sem autenticação
 const PUBLIC_PATHS = [
   '/',
   '/login',
   '/api/auth/login',
-  '/api/health',   // diagnóstico público
+  '/api/health',
 ]
 
 function decodeJWT(token: string): { userId: string; role: string } | null {
   try {
-    const parts = token.split('.')
+    const parts  = token.split('.')
     if (parts.length !== 3) return null
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
     const padded  = base64 + '=='.slice(0, (4 - base64.length % 4) % 4)
@@ -27,7 +28,12 @@ function decodeJWT(token: string): { userId: string; role: string } | null {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (pathname.startsWith('/_next') || pathname.startsWith('/favicon') || pathname.includes('.')) {
+  // Assets — passa direto
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon') ||
+    pathname.includes('.')
+  ) {
     return NextResponse.next()
   }
 
@@ -35,7 +41,7 @@ export function middleware(req: NextRequest) {
   const session  = token ? decodeJWT(token) : null
   const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
 
-  // Logado tentando acessar landing ou login → dashboard
+  // Logado tentando acessar landing/login → dashboard
   if (session && (pathname === '/' || pathname.startsWith('/login'))) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
@@ -48,7 +54,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // /admin só para ADMIN
+  // /admin e /api/admin — somente ADMIN
   if (session && (pathname.startsWith('/admin') || pathname.startsWith('/api/admin'))) {
     if (session.role !== 'ADMIN') {
       if (pathname.startsWith('/api/')) {

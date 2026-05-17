@@ -3,10 +3,10 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'GestFast — Pare de vender sem lucro',
-  description: 'Sistema que calcula automaticamente o custo de produção e sugere o preço ideal para que você nunca mais venda no prejuízo.',
+  description: 'Sistema que calcula automaticamente o custo de produção e sugere o preço ideal.',
   openGraph: {
     title: 'GestFast — Pare de vender sem lucro',
-    description: 'Calcule o custo real dos seus produtos e descubra o preço ideal para ter lucro. Acesso vitalício por R$ 49.',
+    description: 'Calcule o custo real dos seus produtos. Acesso vitalício por R$ 49.',
     type: 'website',
   },
 }

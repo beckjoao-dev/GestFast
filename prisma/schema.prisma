@@ -8,26 +8,312 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  name         String
-  passwordHash String
-  role         Role        @default(USER)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
-  ingredients Ingredient[]
-  products    Product[]
-  extraCosts  ExtraCost[]
-
-  @@map("users")
-}
+// ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum Role {
   ADMIN
   USER
 }
+
+enum Unit {
+  g
+  kg
+  ml
+  l
+  un
+  cx    // caixa
+  pct   // pacote
+}
+
+enum CostCategory {
+  energy
+  gas
+  packaging
+  labor
+  other
+}
+
+enum MovementType {
+  IN          // entrada de compra
+  OUT         // saída por venda
+  PRODUCTION_IN   // entrada por produção
+  PRODUCTION_OUT  // saída por produção (consumo de MP)
+  LOSS        // perda/desperdício
+  ADJUSTMENT  // ajuste manual
+}
+
+enum ProductionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum AlertType {
+  LOW_STOCK
+  EXPIRING_SOON
+  LOW_MARGIN
+  NO_MARGIN
+  PRICE_UPDATED
+  STOCK_OUT
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(USER)
+  // Configurações do usuário
+  laborCostPerHour Decimal @default(0) @db.Decimal(10, 4)
+  defaultMarginPct Decimal @default(35) @db.Decimal(5, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  rawMaterials     RawMaterial[]
+  products         Product[]
+  extraCosts       ExtraCost[]
+  productions      Production[]
+  stockMovements   StockMovement[]
+  alerts           Alert[]
+  financialEntries FinancialEntry[]
+
+  // legado — mantido para compatibilidade
+  ingredients Ingredient[]
+
+  @@map("users")
+}
+
+// ─── Matéria-prima (novo, robusto) ────────────────────────────────────────────
+
+model RawMaterial {
+  id           String   @id @default(cuid())
+  name         String
+  category     String?
+  unit         Unit
+  // Estoque
+  stockQty     Decimal  @default(0) @db.Decimal(14, 4)
+  minStockQty  Decimal  @default(0) @db.Decimal(14, 4)
+  // Custo (calculado automaticamente: unitCost = totalCost / totalQty)
+  totalCost    Decimal  @db.Decimal(10, 4)
+  totalQty     Decimal  @db.Decimal(14, 4)
+  unitCost     Decimal  @db.Decimal(14, 6)  // custo por unidade base
+  // Fornecedor e validade
+  supplier     String?
+  expiresAt    DateTime?
+  batchNumber  String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  recipeItems      RecipeItem[]
+  stockMovements   StockMovement[]
+
+  @@map("raw_materials")
+}
+
+// ─── Produto final ────────────────────────────────────────────────────────────
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  category    String?
+  // Precificação
+  marginPct   Decimal  @default(35) @db.Decimal(5, 2)
+  salePrice   Decimal  @default(0)  @db.Decimal(10, 4)
+  // Custos calculados automaticamente
+  ingredientCost Decimal @default(0) @db.Decimal(10, 4)
+  laborCost      Decimal @default(0) @db.Decimal(10, 4)
+  extraCostTotal Decimal @default(0) @db.Decimal(10, 4)
+  totalCost      Decimal @default(0) @db.Decimal(10, 4)
+  unitCost       Decimal @default(0) @db.Decimal(10, 4)
+  suggestedPrice Decimal @default(0) @db.Decimal(10, 4)
+  profitPerUnit  Decimal @default(0) @db.Decimal(10, 4)
+  // Estoque produto final
+  stockQty    Decimal  @default(0) @db.Decimal(14, 4)
+  minStockQty Decimal  @default(0) @db.Decimal(14, 4)
+  // Tempo
+  timeMinutes Int?
+  // Taxas
+  taxPct      Decimal  @default(0) @db.Decimal(5, 2)
+  cardFeePct  Decimal  @default(0) @db.Decimal(5, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  recipe           Recipe?
+  productions      Production[]
+  stockMovements   StockMovement[]
+  priceHistory     PriceHistory[]
+
+  // legado
+  batchSize    Int      @default(1)
+  energyCost   Float    @default(0)
+  gasCost      Float    @default(0)
+  packCost     Float    @default(0)
+  otherCost    Float    @default(0)
+  ingredients  ProductIngredient[]
+  extraCosts   ProductExtraCost[]
+
+  @@map("products")
+}
+
+// ─── Ficha técnica (Recipe) ───────────────────────────────────────────────────
+
+model Recipe {
+  id            String   @id @default(cuid())
+  // Rendimento
+  yieldQty      Decimal  @db.Decimal(14, 4)  // ex: 20 (brigadeiros)
+  yieldUnit     Unit                           // ex: un
+  // Mão de obra
+  laborMinutes  Int      @default(0)
+  // Embalagem e extras
+  packagingCost Decimal  @default(0) @db.Decimal(10, 4)
+  extraCost     Decimal  @default(0) @db.Decimal(10, 4)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  items RecipeItem[]
+
+  @@map("recipes")
+}
+
+model RecipeItem {
+  id       String  @id @default(cuid())
+  quantity Decimal @db.Decimal(14, 4)  // quantidade usada
+  unitCost Decimal @default(0) @db.Decimal(14, 6) // snapshot do custo no momento
+
+  recipeId      String
+  recipe        Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  rawMaterialId String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Restrict)
+
+  @@unique([recipeId, rawMaterialId])
+  @@map("recipe_items")
+}
+
+// ─── Custos operacionais ──────────────────────────────────────────────────────
+
+model ExtraCost {
+  id        String       @id @default(cuid())
+  name      String
+  category  CostCategory
+  totalCost Decimal      @db.Decimal(10, 4)
+  totalQty  Decimal      @db.Decimal(14, 4)
+  unitCost  Decimal      @db.Decimal(14, 6)
+  unit      String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productExtraCosts ProductExtraCost[]
+
+  @@map("extra_costs")
+}
+
+// ─── Produção ─────────────────────────────────────────────────────────────────
+
+model Production {
+  id          String          @id @default(cuid())
+  qty         Decimal         @db.Decimal(14, 4)  // quantidade produzida
+  totalCost   Decimal         @default(0) @db.Decimal(10, 4)
+  unitCost    Decimal         @default(0) @db.Decimal(10, 4)
+  status      ProductionStatus @default(PLANNED)
+  notes       String?
+  producedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("productions")
+}
+
+// ─── Movimentações de estoque ─────────────────────────────────────────────────
+
+model StockMovement {
+  id           String       @id @default(cuid())
+  type         MovementType
+  qty          Decimal      @db.Decimal(14, 4)
+  unitCost     Decimal      @default(0) @db.Decimal(14, 6)
+  totalCost    Decimal      @default(0) @db.Decimal(10, 4)
+  reason       String?
+  createdAt    DateTime     @default(now())
+
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  rawMaterialId String?
+  rawMaterial   RawMaterial? @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
+  productId     String?
+  product       Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@map("stock_movements")
+}
+
+// ─── Histórico de preços ──────────────────────────────────────────────────────
+
+model PriceHistory {
+  id         String   @id @default(cuid())
+  unitCost   Decimal  @db.Decimal(10, 4)
+  salePrice  Decimal  @db.Decimal(10, 4)
+  marginPct  Decimal  @db.Decimal(5, 2)
+  createdAt  DateTime @default(now())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("price_history")
+}
+
+// ─── Financeiro ───────────────────────────────────────────────────────────────
+
+model FinancialEntry {
+  id          String   @id @default(cuid())
+  type        String   // INCOME | EXPENSE
+  category    String
+  description String
+  amount      Decimal  @db.Decimal(10, 4)
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("financial_entries")
+}
+
+// ─── Alertas ──────────────────────────────────────────────────────────────────
+
+model Alert {
+  id        String    @id @default(cuid())
+  type      AlertType
+  message   String
+  read      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("alerts")
+}
+
+// ─── LEGADO — mantido para não quebrar dados existentes ──────────────────────
 
 model Ingredient {
   id        String   @id @default(cuid())
@@ -44,54 +330,6 @@ model Ingredient {
   productIngredients ProductIngredient[]
 
   @@map("ingredients")
-}
-
-model ExtraCost {
-  id        String       @id @default(cuid())
-  name      String
-  category  CostCategory
-  totalCost Float
-  totalQty  Float
-  unit      String
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  productExtraCosts ProductExtraCost[]
-
-  @@map("extra_costs")
-}
-
-enum CostCategory {
-  energy
-  gas
-  packaging
-  labor
-  other
-}
-
-model Product {
-  id          String   @id @default(cuid())
-  name        String
-  timeMinutes Int?
-  marginPct   Float
-  batchSize   Int      @default(1)
-  energyCost  Float    @default(0)
-  gasCost     Float    @default(0)
-  packCost    Float    @default(0)
-  otherCost   Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  ingredients ProductIngredient[]
-  extraCosts  ProductExtraCost[]
-
-  @@map("products")
 }
 
 model ProductIngredient {
@@ -118,12 +356,4 @@ model ProductExtraCost {
 
   @@unique([productId, extraCostId])
   @@map("product_extra_costs")
-}
-
-enum Unit {
-  g
-  kg
-  ml
-  l
-  un
 }
